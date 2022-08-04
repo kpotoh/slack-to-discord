@@ -3,3 +3,4 @@ slack_to_discord.egg-info
 __pycache__
 *.zip
 MitoFunGen Slack export Nov 1 2019 - Jul 23 2022
+env*

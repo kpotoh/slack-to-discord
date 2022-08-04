@@ -14,7 +14,10 @@ from urllib.parse import urlparse
 
 import discord
 from discord.errors import Forbidden
+from discord.channel import TextChannel
 
+# Restrictions in discord
+MAX_MESSAGE_SIZE = 2000
 
 # Date and time formats
 DATE_FORMAT = "%Y-%m-%d"
@@ -90,7 +93,10 @@ def emoji_replace(s, emoji_map):
 def slack_usermap(d):
     with open(os.path.join(d, "users.json"), 'rb') as fp:
         data = json.load(fp)
-    r = {x["id"]: x["name"] for x in data}
+    r = dict()
+    for x in data:
+        r[x["id"]] = x.get('real_name', x['name'])
+
     r["USLACKBOT"] = "Slackbot"
     r["B01"] = "Slackbot"
     return r
@@ -264,9 +270,34 @@ def slack_channel_messages(d, channel_name, emoji_map, pins):
         yield msg
 
 
-def make_discord_msgs(msg, is_reply):
+def split_message(full_text: str):
+    nchunks = len(full_text) // MAX_MESSAGE_SIZE + 1
+    text_chunks = [full_text[i * MAX_MESSAGE_SIZE: (i + 1) * MAX_MESSAGE_SIZE] for i in nchunks]
+    if len(text_chunks[-1]) == 0:
+        text_chunks = text_chunks[:-1]
+    return text_chunks
 
+
+def make_discord_msgs(msg: dict, is_reply):
     msg_fmt = (THREAD_FORMAT if is_reply else MSG_FORMAT)
+    
+    # Split long message and 
+    full_text = msg.get("text")
+    msg_len = len(full_text)
+    if msg_len > MAX_MESSAGE_SIZE:
+        text_chunks = split_message(full_text)
+
+        # Send first chunk with date and username
+        sub_msg = msg.copy()
+        sub_msg["text"] = text_chunks[0]
+        yield {"content": msg_fmt.format(**sub_msg)}
+
+        # Send other chunks without date and username except last chunk
+        for text_chunk in text_chunks[1:-1]:
+            yield {"content": text_chunk}
+
+        # further code will process last chunk
+        msg["text"] = text_chunks[-1]
 
     # Show reactions listed in an embed
     embed = None
@@ -370,7 +401,13 @@ class MyClient(discord.Client):
             await self.logout()
 
 
-    async def _send_slack_msg(self, channel, msg, is_reply=False):
+    async def _send_slack_msg(self, channel: TextChannel, msg, is_reply=False):
+        
+        # TODO DROP!!!!
+        mobj = await channel.send(content="Test")
+        thrd = await mobj.create_thread(name=msg.get("text"))
+        await thrd.send(content="Thread 1")
+        
 
         if not is_reply and DATE_SEPARATOR:
             msg_date = msg["date"]
@@ -416,7 +453,7 @@ class MyClient(discord.Client):
                 # skip messages that are too early, stop when messages are too late
                 if self._end and msg["datetime"].date() > self._end:
                     break
-                elif self._start and  msg["datetime"].date() < self._start:
+                elif self._start and msg["datetime"].date() < self._start:
                     continue
 
                 # Now that we have a message to send, get/create the channel to send it to
