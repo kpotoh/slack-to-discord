@@ -18,7 +18,7 @@ from discord.channel import TextChannel
 
 # Done channels
 # DONE_CHANNELS = {"lab-grants-jobs",}
-DONE_CHANNELS = {}
+DONE_CHANNELS = {"lab-08-people-organisations", "lab-04-jobs-grants-startups", "lab-11-random-mito-shit"}
 
 # Restrictions of discord
 MAX_MESSAGE_SIZE = 1800  # actually max size = 2000, but there are technical stuff in our messages (username and date)
@@ -507,7 +507,7 @@ class MyClient(discord.Client):
 
 
 def main():
-    infile = "./MitoFunGen Slack export Nov 1 2019 - Jul 23 2022.zip"
+    infile = "./MitoFunGen01 Slack export Jun 26 2021 - Aug 5 2022.zip"
     guild = "mitoclub"
     with open("./token.txt") as fin:
         token = fin.read().strip()
