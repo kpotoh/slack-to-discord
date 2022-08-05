@@ -7,20 +7,22 @@ This tool takes a Slack export file and imports it into a Discord server
 
 Capabilities
 ------------
+
 - Import complete message history (tested with an import of just over 10,000 messages).
 - Handles private channels (if they're included in your Slack export).
 - Handles images and other files (falls back to linking to the files hosted by Slack if they're too
   big to upload).
 - Preserves emojis and reactions to messages (custom emojis will work, but need to be manually added
   to Discord before importing).
-- Preserves threaded conversations (threaded messages are displayed after the parent message and
-  indented).
+- Preserves threaded conversations.
 - Preserves pinned messages.
 - Day boundaries between messages are marked by a `--------YYYY-MM-DD--------` message and each
   message is prefixed by the time it was sent.
+- Split very long messages for Discord (>2000 symbols) to chunks and send them sequentially.
 
 Limitations
 -----------
+
 - Messages will appear to all come from a bot, not actual users. This is worked around by adding the
   original username to the message text.
 - Messages will be timestamped by Discord as the time they were imported, not as the time they were
@@ -32,6 +34,7 @@ Limitations
   message containing the title of the uploaded file and attaching it.
 
 General recommendations
+
 -----------------------
 The program will read all messages from the Slack export and use a bot to post them in a Discord
 server. It's recommended to start with a completely clean server before importing history. As the
@@ -50,6 +53,7 @@ contribute your fixes back to the project!), or open an issue on the project.
 
 Instructions
 ------------
+
 1. Export your data from Slack via <https://my.slack.com/services/export>
 2. Create a Discord bot (see <https://discordpy.readthedocs.io/en/latest/discord.html>) with the
    following permissions:

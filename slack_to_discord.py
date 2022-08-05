@@ -16,15 +16,22 @@ import discord
 from discord.errors import Forbidden
 from discord.channel import TextChannel
 
-# Restrictions in discord
-MAX_MESSAGE_SIZE = 2000
+# Done channels
+# DONE_CHANNELS = {"lab-grants-jobs",}
+DONE_CHANNELS = {}
+
+# Restrictions of discord
+MAX_MESSAGE_SIZE = 1800  # actually max size = 2000, but there are technical stuff in our messages (username and date)
+THREAD_NAME_MAX_NSYMBOLS = 100
+THREAD_NAME_MAX_NWORDS = 10  # we split to N words. After that we use slice of first 100 symbols just in case
 
 # Date and time formats
 DATE_FORMAT = "%Y-%m-%d"
 TIME_FORMAT = "%H:%M"
 
 # Formatting options for messages
-THREAD_FORMAT = ">>>> {date} {time} <**{username}**> {text}"
+# THREAD_FORMAT = ">>>> {date} {time} <**{username}**> {text}"
+THREAD_FORMAT = "{date} {time} <**{username}**> {text}"
 MSG_FORMAT = "{time} <**{username}**> {text}"
 ATTACHMENT_TITLE_TEXT = "<*uploaded a file*> {title}"
 ATTACHMENT_ERROR_APPEND = "\n<file thumbnail used due to size restrictions. See original at <{url}>>"
@@ -113,10 +120,11 @@ def slack_channels(d):
     # (this is a guess based on API docs since I couldn't get a private data export from Slack)
     is_private = lambda x: x.get("is_private", False)
 
-    return {
+    out = {
         x["name"]: (topic(x), is_private(x), pins(x))
-        for x in data
+        for x in data if x["name"] not in DONE_CHANNELS
     }
+    return out
 
 
 def slack_filedata(f):
@@ -272,7 +280,7 @@ def slack_channel_messages(d, channel_name, emoji_map, pins):
 
 def split_message(full_text: str):
     nchunks = len(full_text) // MAX_MESSAGE_SIZE + 1
-    text_chunks = [full_text[i * MAX_MESSAGE_SIZE: (i + 1) * MAX_MESSAGE_SIZE] for i in nchunks]
+    text_chunks = [full_text[i * MAX_MESSAGE_SIZE: (i + 1) * MAX_MESSAGE_SIZE] for i in range(nchunks)]
     if len(text_chunks[-1]) == 0:
         text_chunks = text_chunks[:-1]
     return text_chunks
@@ -296,7 +304,8 @@ def make_discord_msgs(msg: dict, is_reply):
         for text_chunk in text_chunks[1:-1]:
             yield {"content": text_chunk}
 
-        # further code will process last chunk
+        # further code will process only last chunk, 
+        # i.e. attachments and reactions will be attibuted to last message chunk
         msg["text"] = text_chunks[-1]
 
     # Show reactions listed in an embed
@@ -398,16 +407,11 @@ class MyClient(discord.Client):
             await self._run_import(g)
         finally:
             print("Bot logging out")
-            await self.logout()
+            await self.close()
 
 
-    async def _send_slack_msg(self, channel: TextChannel, msg, is_reply=False):
-        
-        # TODO DROP!!!!
-        mobj = await channel.send(content="Test")
-        thrd = await mobj.create_thread(name=msg.get("text"))
-        await thrd.send(content="Thread 1")
-        
+    async def _send_slack_msg(self, channel: TextChannel, msg, thread=None):
+        is_reply = bool(thread)
 
         if not is_reply and DATE_SEPARATOR:
             msg_date = msg["date"]
@@ -418,19 +422,27 @@ class MyClient(discord.Client):
                 await channel.send(content=DATE_SEPARATOR.format(msg_date))
             self._prev_msg = msg
 
+        message_obj = None
         pin = msg["events"].pop("pin", False)
         for data in make_discord_msgs(msg, is_reply):
             for attempt in file_upload_attempts(data):
                 with contextlib.suppress(Exception):
-                    msg = await channel.send(**attempt)
+                    if is_reply:
+                        message_obj = await thread.send(**attempt)
+                    else:
+                        message_obj = await channel.send(**attempt)
                     if pin:
                         pin = False
                         # Requires the "manage messages" optional permission
                         with contextlib.suppress(Forbidden):
-                            await msg.pin()
+                            await message_obj.pin()
                     break
             else:
                 print("Failed to post message: '{}'\n".format(data["content"]))
+        if is_reply:
+            message_obj = None
+
+        return message_obj
 
     async def _run_import(self, g):
         self._started = True
@@ -481,11 +493,15 @@ class MyClient(discord.Client):
                     await ch.edit(topic=topic)
 
                 # Send message and threaded replies
-                await self._send_slack_msg(ch, msg)
+                message_obj = await self._send_slack_msg(ch, msg)
                 c_msg += 1
-                for rmsg in msg["replies"]:
-                    await self._send_slack_msg(ch, rmsg, is_reply=True)
-                    c_msg += 1
+                if len(msg["replies"]) and message_obj is not None:
+                    tname = " ".join(msg["text"].split()[:THREAD_NAME_MAX_NWORDS])[:THREAD_NAME_MAX_NSYMBOLS]
+                    tname = tname if len(tname) else "Thread"  # if thread created for image-message that absent text discord.py cannot create thread
+                    thrd = await message_obj.create_thread(name=tname)
+                    for rmsg in msg["replies"]:
+                        await self._send_slack_msg(ch, rmsg, thread=thrd)
+                        c_msg += 1
             print("Done!")
         print("Imported {} messages into {} channel(s) in {}".format(c_msg, c_chan, datetime.now()-start_time))
 
