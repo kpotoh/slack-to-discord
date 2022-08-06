@@ -4,7 +4,7 @@ from setuptools import setup
 
 setup(
     name="slack-to-discord",
-    version="0.0.1",
+    version="0.0.2",
     description="Extract data from a Slack export and import it into Discord",
     url="https://github.com/pR0Ps/slack-to-discord",
     license="GPLv3",
@@ -15,7 +15,7 @@ setup(
         "Programming Language :: Python :: 3.8",
     ],
     install_requires = [
-        "discord.py>=1.5.0,<2.0.0"
+        "discord2>=2.0.1"
     ],
     py_modules=["slack_to_discord"],
     entry_points={"console_scripts": ["slack-to-discord=slack_to_discord:main"]},

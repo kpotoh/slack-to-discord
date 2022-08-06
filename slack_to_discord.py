@@ -16,10 +16,6 @@ import discord
 from discord.errors import Forbidden
 from discord.channel import TextChannel
 
-# Done channels
-# DONE_CHANNELS = {"lab-grants-jobs",}
-DONE_CHANNELS = {"lab-08-people-organisations", "lab-04-jobs-grants-startups", "lab-11-random-mito-shit"}
-
 # Restrictions of discord
 MAX_MESSAGE_SIZE = 1800  # actually max size = 2000, but there are technical stuff in our messages (username and date)
 THREAD_NAME_MAX_NSYMBOLS = 100
@@ -120,10 +116,7 @@ def slack_channels(d):
     # (this is a guess based on API docs since I couldn't get a private data export from Slack)
     is_private = lambda x: x.get("is_private", False)
 
-    out = {
-        x["name"]: (topic(x), is_private(x), pins(x))
-        for x in data if x["name"] not in DONE_CHANNELS
-    }
+    out = {x["name"]: (topic(x), is_private(x), pins(x)) for x in data}
     return out
 
 
@@ -382,11 +375,12 @@ def file_upload_attempts(data):
 
 class MyClient(discord.Client):
 
-    def __init__(self, *args, data_dir, guild_name, all_private, start, end, **kwargs):
+    def __init__(self, *args, data_dir, guild_name, all_private, skip_existing_channels, start, end, **kwargs):
         self._data_dir = data_dir
         self._guild_name = guild_name
         self._prev_msg = None
         self._all_private = all_private
+        self._skip_existing_channels = skip_existing_channels,
         self._start, self._end = [datetime.strptime(x, DATE_FORMAT).date() if x else None for x in (start, end)]
 
         self._started = False # TODO: async equiv of a threading.event
@@ -454,6 +448,9 @@ class MyClient(discord.Client):
         existing_channels = {x.name: x for x in g.text_channels}
 
         for c, (init_topic, is_private, pins) in slack_channels(self._data_dir).items():
+            if self._skip_existing_channels and c in existing_channels:
+                print("Pass existing channel '{}'".format(c))
+                continue 
 
             init_topic = emoji_replace(init_topic, emoji_map)
             ch = None
@@ -523,6 +520,7 @@ def main():
             data_dir=t,
             guild_name=guild,
             all_private=False,
+            skip_existing_channels=True,
             start=None,
             end=None,
         )
@@ -539,6 +537,7 @@ def main():
 #     parser.add_argument("-s", "--start", help="The date to start importing from", required=False, default=None)
 #     parser.add_argument("-e", "--end", help="The date to end importing at", required=False, default=None)
 #     parser.add_argument("-p", "--all-private", help="Import all channels as private channels in Discord", action="store_true", default=False)
+#     parser.add_argument("-x", "--skip-existing", help="Skip channel if guild already contain channel with same name", action="store_true", default=False)
 
 #     args = parser.parse_args()
 
@@ -550,9 +549,10 @@ def main():
 
 #         print("Logging the bot into Discord...", end="", flush=True)
 #         client = MyClient(
-#             data_dir=t,
+            # data_dir=t,
 #             guild_name=args.guild,
 #             all_private=args.all_private,
+#             skip_existing_channel=args.skip_existing
 #             start=args.start,
 #             end=args.end
 #         )
