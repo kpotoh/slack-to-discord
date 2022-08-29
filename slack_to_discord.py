@@ -504,59 +504,35 @@ class MyClient(discord.Client):
 
 
 def main():
-    infile = "./MitoFunGen01 Slack export Jun 26 2021 - Aug 5 2022.zip"
-    guild = "mitoclub"
-    with open("./token.txt") as fin:
-        token = fin.read().strip()
+    parser = argparse.ArgumentParser(
+        description="Import Slack chat history into Discord"
+    )
+    parser.add_argument("-z", "--zipfile", help="The Slack export zip file", required=True)
+    parser.add_argument("-g", "--guild", help="The Discord Guild to import history into", required=True)
+    parser.add_argument("-t", "--token", help="The Discord bot token", required=True)
+    parser.add_argument("-s", "--start", help="The date to start importing from", required=False, default=None)
+    parser.add_argument("-e", "--end", help="The date to end importing at", required=False, default=None)
+    parser.add_argument("-p", "--all-private", help="Import all channels as private channels in Discord", action="store_true", default=False)
+    parser.add_argument("-x", "--skip-existing", help="Skip channel if guild already contain channel with same name", action="store_true", default=False)
+
+    args = parser.parse_args()
 
     print("Extracting zipfile...", end="", flush=True)
     with tempfile.TemporaryDirectory() as t:
-        with zipfile.ZipFile(infile, 'r') as z:
+        with zipfile.ZipFile(args.zipfile, 'r') as z:
             z.extractall(t)
         print("Done!")
 
         print("Logging the bot into Discord...", end="", flush=True)
         client = MyClient(
             data_dir=t,
-            guild_name=guild,
-            all_private=False,
-            skip_existing_channels=True,
-            start=None,
-            end=None,
+            guild_name=args.guild,
+            all_private=args.all_private,
+            skip_existing_channel=args.skip_existing
+            start=args.start,
+            end=args.end
         )
-        client.run(token)
-
-
-# def main():
-#     parser = argparse.ArgumentParser(
-#         description="Import Slack chat history into Discord"
-#     )
-#     parser.add_argument("-z", "--zipfile", help="The Slack export zip file", required=True)
-#     parser.add_argument("-g", "--guild", help="The Discord Guild to import history into", required=True)
-#     parser.add_argument("-t", "--token", help="The Discord bot token", required=True)
-#     parser.add_argument("-s", "--start", help="The date to start importing from", required=False, default=None)
-#     parser.add_argument("-e", "--end", help="The date to end importing at", required=False, default=None)
-#     parser.add_argument("-p", "--all-private", help="Import all channels as private channels in Discord", action="store_true", default=False)
-#     parser.add_argument("-x", "--skip-existing", help="Skip channel if guild already contain channel with same name", action="store_true", default=False)
-
-#     args = parser.parse_args()
-
-#     print("Extracting zipfile...", end="", flush=True)
-#     with tempfile.TemporaryDirectory() as t:
-#         with zipfile.ZipFile(args.zipfile, 'r') as z:
-#             z.extractall(t)
-#         print("Done!")
-
-#         print("Logging the bot into Discord...", end="", flush=True)
-#         client = MyClient(
-            # data_dir=t,
-#             guild_name=args.guild,
-#             all_private=args.all_private,
-#             skip_existing_channel=args.skip_existing
-#             start=args.start,
-#             end=args.end
-#         )
-#         client.run(args.token)
+        client.run(args.token)
 
 
 if __name__ == "__main__":
